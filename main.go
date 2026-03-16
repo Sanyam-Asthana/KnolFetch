@@ -41,8 +41,12 @@ type Author struct {
 
 type Category struct {
 	Name 	  	  string `xml:"name"`
-	MaxResults 	  int `xml:"maxresults"`
-	MaxAbstractLength int `xml:"maxabstractlength"`
+	MaxResults 	  int    `xml:"maxresults"`
+	MaxAbstractLength int    `xml:"maxabstractlength"`
+	ShowTitle         bool   `xml:"title,attr"`
+	ShowAuthor 	  bool   `xml:"author,attr"`
+	ShowAbstract	  bool   `xml:"abstract,attr"`
+	ShowLink          bool   `xml:"link,attr"`
 }
 
 type Config struct {
@@ -96,29 +100,38 @@ func main() {
 
 		for _, entry := range feed.Entries {
 			fmt.Println("--------------------")
-			fmt.Println(BOLDGREEN + "Title: " + RESET + entry.Title)
-			fmt.Println()
-
-			fmt.Print(BOLDGREEN + "Authors: " + RESET)
-			for _, author := range entry.Authors {
-				fmt.Print(author.Name + ", ")
+			if category.ShowTitle {
+				fmt.Println(BOLDGREEN + "Title: " + RESET + entry.Title)
+				fmt.Println()
 			}
-			fmt.Println()
-			fmt.Println()
-
-			abstract := entry.Summary
-			if len(abstract) > category.MaxAbstractLength {
-			    abstract = abstract[:category.MaxAbstractLength]
+			
+			if category.ShowAuthor {
+				fmt.Print(BOLDGREEN + "Authors: " + RESET)
+				for _, author := range entry.Authors {
+					fmt.Print(author.Name + ", ")
+				}
+				fmt.Println()
+				fmt.Println()
 			}
-			fmt.Println(BOLDGREEN + "Abstract: " + RESET + abstract)
+			
+			if category.ShowAbstract {
+				abstract := entry.Summary
+				if len(abstract) > category.MaxAbstractLength {
+				    abstract = abstract[:category.MaxAbstractLength]
+				}
+			
+				fmt.Println(BOLDGREEN + "Abstract: " + RESET + abstract)
 
-			fmt.Println()
+				fmt.Println()
+			}
 
-			fmt.Println(BOLDGREEN + "Link to PDF: " + RESET + entry.Links[1].Href)
+			if category.ShowLink {
+				fmt.Println(BOLDGREEN + "Link to PDF: " + RESET + entry.Links[1].Href)
+			}
 		}
 
-		resp.Body.Close()
-		fmt.Println("--------------------")
-	}
+			resp.Body.Close()
+			fmt.Println("--------------------")
+		}
 
 }
