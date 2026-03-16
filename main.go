@@ -43,10 +43,10 @@ type Category struct {
 	Name 	  	  string `xml:"name"`
 	MaxResults 	  int    `xml:"maxresults"`
 	MaxAbstractLength int    `xml:"maxabstractlength"`
-	ShowTitle         bool   `xml:"title,attr"`
-	ShowAuthor 	  bool   `xml:"author,attr"`
-	ShowAbstract	  bool   `xml:"abstract,attr"`
-	ShowLink          bool   `xml:"link,attr"`
+	HideTitle         bool   `xml:"hidetitle,attr"`
+	HideAuthor 	  bool   `xml:"hideauthor,attr"`
+	HideAbstract	  bool   `xml:"hideabstract,attr"`
+	HideLink          bool   `xml:"hidelink,attr"`
 }
 
 type Config struct {
@@ -89,6 +89,7 @@ func main() {
 		}
 
 		text, err := io.ReadAll(resp.Body)
+		defer resp.Body.Close()
 
 		if err != nil {
 			fmt.Println("There was some problem in reading the response!")
@@ -100,12 +101,12 @@ func main() {
 
 		for _, entry := range feed.Entries {
 			fmt.Println("--------------------")
-			if category.ShowTitle {
+			if !category.HideTitle {
 				fmt.Println(BOLDGREEN + "Title: " + RESET + entry.Title)
 				fmt.Println()
 			}
 			
-			if category.ShowAuthor {
+			if !category.HideAuthor {
 				fmt.Print(BOLDGREEN + "Authors: " + RESET)
 				for _, author := range entry.Authors {
 					fmt.Print(author.Name + ", ")
@@ -114,7 +115,7 @@ func main() {
 				fmt.Println()
 			}
 			
-			if category.ShowAbstract {
+			if !category.HideAbstract {
 				abstract := entry.Summary
 				if len(abstract) > category.MaxAbstractLength {
 				    abstract = abstract[:category.MaxAbstractLength]
@@ -125,12 +126,11 @@ func main() {
 				fmt.Println()
 			}
 
-			if category.ShowLink {
+			if !category.HideLink {
 				fmt.Println(BOLDGREEN + "Link to PDF: " + RESET + entry.Links[1].Href)
 			}
 		}
 
-			resp.Body.Close()
 			fmt.Println("--------------------")
 		}
 
