@@ -6,17 +6,31 @@ import(
 	"encoding/xml"
 	"io"
 	"os"
+	"flag"
 )
 
 const (
 	BOLDGREEN string = "\x1b[1;32m"
 	BOLDRED string = "\x1b[1;31m"
 	RESET string = "\x1b[0m"
-
 )
 
+type Results struct {
+	XMLName       xml.Name       `xml:"results"`
+	CategoryFeeds []CategoryFeed `xml:"categoryfeed"`
+}
+
+type CategoryFeed struct {
+	Name             string `xml:"name,attr"`
+	MaxAbstractLength int   `xml:"maxabstractlength,attr"`
+	HideTitle        bool   `xml:"hidetitle,attr"`
+	HideAuthor       bool   `xml:"hideauthor,attr"`
+	HideAbstract     bool   `xml:"hideabstract,attr"`
+	HideLink         bool   `xml:"hidelink,attr"`
+	Feed Feed `xml:"feed"`
+}
+
 type Feed struct {
-	XMLName xml.Name `xml:"feed"`
 	Entries []Entry `xml:"entry"`
 }
 
@@ -26,7 +40,7 @@ type Entry struct {
 	Summary   string   `xml:"summary"`
 	ID        string   `xml:"id"`
 	Published string   `xml:"published"`
-	Links	  []Link   `xml:"link"`
+	Links     []Link   `xml:"link"`
 }
 
 type Link struct {
@@ -40,98 +54,153 @@ type Author struct {
 }
 
 type Category struct {
-	Name 	  	  string `xml:"name"`
-	MaxResults 	  int    `xml:"maxresults"`
-	MaxAbstractLength int    `xml:"maxabstractlength"`
-	HideTitle         bool   `xml:"hidetitle,attr"`
-	HideAuthor 	  bool   `xml:"hideauthor,attr"`
-	HideAbstract	  bool   `xml:"hideabstract,attr"`
-	HideLink          bool   `xml:"hidelink,attr"`
+	Name             string `xml:"name"`
+	MaxResults       int    `xml:"maxresults"`
+	MaxAbstractLength int   `xml:"maxabstractlength"`
+	HideTitle        bool   `xml:"hidetitle,attr"`
+	HideAuthor       bool   `xml:"hideauthor,attr"`
+	HideAbstract     bool   `xml:"hideabstract,attr"`
+	HideLink         bool   `xml:"hidelink,attr"`
 }
 
 type Config struct {
-	XMLName    xml.Name `xml:"config"`
+	XMLName    xml.Name   `xml:"config"`
 	Categories []Category `xml:"category"`
 }
 
 func main() {
 
-	var config Config
+	fetchBoolPtr := flag.Bool("fetch", false, "fetch the latest research")
+	flag.Parse()
 
 	homeDir, err := os.UserHomeDir()
-
 	if err != nil {
 		fmt.Println("Cannot get the home directory!")
 	}
 
-	path := homeDir + "/.config/knolfetch/config.xml"
-	dat, err := os.ReadFile(path)
+	if *fetchBoolPtr {
 
-	if err != nil {
-		fmt.Println("Cannot open config file!")
-		return
+		var config Config
+
+		path := homeDir + "/.config/knolfetch/config.xml"
+		dat, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Println("Cannot open config file!")
+			return
+		}
+
+		xml.Unmarshal(dat, &config)
+		categories := config.Categories
+
+		cacheDir, err := os.UserCacheDir()
+		if err != nil {
+			fmt.Println("Cannot get cache directory!")
+			return
+		}
+		cacheDir = cacheDir + "/knolfetch/"
+		os.MkdirAll(cacheDir, 0755)
+
+		cachePath := cacheDir + "cache.xml"
+		f, err := os.Create(cachePath)
+		if err != nil {
+			fmt.Println("Error while creating cache file:", err)
+			return
+		}
+		defer f.Close()
+
+		f.WriteString("<results>\n")
+
+		for _, category := range categories {
+
+			query := fmt.Sprintf(
+				"https://export.arxiv.org/api/query?search_query=cat:%s&start=0&max_results=%d&sortBy=submittedDate&sortOrder=descending",
+				category.Name, category.MaxResults,
+			)
+			resp, err := http.Get(query)
+			if err != nil {
+				fmt.Println("There was some problem in fetching!")
+				return
+			}
+			defer resp.Body.Close()
+
+			text, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("There was some problem in reading the response!")
+				return
+			}
+
+			f.WriteString(fmt.Sprintf(
+				"<categoryfeed name=\"%s\" maxabstractlength=\"%d\" hidetitle=\"%t\" hideauthor=\"%t\" hideabstract=\"%t\" hidelink=\"%t\">\n",
+				category.Name,
+				category.MaxAbstractLength,
+				category.HideTitle,
+				category.HideAuthor,
+				category.HideAbstract,
+				category.HideLink,
+			))
+			f.Write(text)
+			f.WriteString("</categoryfeed>\n")
+		}
+
+		f.WriteString("</results>\n")
+		fmt.Println("Fetched the latest research!")
+
+	} else {
+
+		cacheDir, err := os.UserCacheDir()
+		if err != nil {
+			fmt.Println("Cannot get cache directory!")
+			return
+		}
+		cachePath := cacheDir + "/knolfetch/cache.xml"
+
+		text, err := os.ReadFile(cachePath)
+		if err != nil {
+			fmt.Println("Error fetching cache!")
+			return
+		}
+
+		var results Results
+		xml.Unmarshal(text, &results)
+
+		for _, cf := range results.CategoryFeeds {
+			fmt.Println(BOLDRED + "Results for " + cf.Name + ":" + RESET)
+			for _, entry := range cf.Feed.Entries {
+				fmt.Println("--------------------")
+
+				if !cf.HideTitle {
+					fmt.Println(BOLDGREEN + "Title: " + RESET + entry.Title)
+					fmt.Println()
+				}
+
+				if !cf.HideAuthor {
+					fmt.Print(BOLDGREEN + "Authors: " + RESET)
+					for _, author := range entry.Authors {
+						fmt.Print(author.Name + ", ")
+					}
+					fmt.Println()
+					fmt.Println()
+				}
+
+				if !cf.HideAbstract {
+					abstract := entry.Summary
+					if cf.MaxAbstractLength > 0 && len(abstract) > cf.MaxAbstractLength {
+						abstract = abstract[:cf.MaxAbstractLength]
+					}
+					fmt.Println(BOLDGREEN + "Abstract: " + RESET + abstract)
+					fmt.Println()
+				}
+
+				if !cf.HideLink {
+					for _, link := range entry.Links {
+						if link.Type == "application/pdf" {
+							fmt.Println(BOLDGREEN + "Link to PDF: " + RESET + link.Href)
+							break
+						}
+					}
+				}
+			}
+			fmt.Println("--------------------")
+		}
 	}
-
-	xml.Unmarshal(dat, &config)
-
-	categories := config.Categories
-
-	for _, category := range categories {
-
-		fmt.Println(BOLDRED + "Results for " + category.Name + ":" + RESET);
-
-		query := fmt.Sprintf("https://export.arxiv.org/api/query?search_query=cat:%s&start=0&max_results=%d&sortBy=submittedDate&sortOrder=descending", category.Name, category.MaxResults)
-		resp, err := http.Get(query)
-
-		if err != nil {
-			fmt.Println("There was some problem in fetching!")
-			return
-		}
-
-		text, err := io.ReadAll(resp.Body)
-		defer resp.Body.Close()
-
-		if err != nil {
-			fmt.Println("There was some problem in reading the response!")
-			return
-		}
-
-		var feed Feed
-		xml.Unmarshal(text, &feed)
-
-		for _, entry := range feed.Entries {
-			fmt.Println("--------------------")
-			if !category.HideTitle {
-				fmt.Println(BOLDGREEN + "Title: " + RESET + entry.Title)
-				fmt.Println()
-			}
-			
-			if !category.HideAuthor {
-				fmt.Print(BOLDGREEN + "Authors: " + RESET)
-				for _, author := range entry.Authors {
-					fmt.Print(author.Name + ", ")
-				}
-				fmt.Println()
-				fmt.Println()
-			}
-			
-			if !category.HideAbstract {
-				abstract := entry.Summary
-				if len(abstract) > category.MaxAbstractLength {
-				    abstract = abstract[:category.MaxAbstractLength]
-				}
-			
-				fmt.Println(BOLDGREEN + "Abstract: " + RESET + abstract)
-
-				fmt.Println()
-			}
-
-			if !category.HideLink {
-				fmt.Println(BOLDGREEN + "Link to PDF: " + RESET + entry.Links[1].Href)
-			}
-		}
-
-			fmt.Println("--------------------")
-		}
-
 }
