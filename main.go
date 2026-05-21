@@ -1,18 +1,18 @@
 package main
 
-import(
-	"fmt"
-	"net/http"
+import (
 	"encoding/xml"
-	"io"
-	"os"
 	"flag"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
 )
 
 const (
 	BOLDGREEN string = "\x1b[1;32m"
-	BOLDRED string = "\x1b[1;31m"
-	RESET string = "\x1b[0m"
+	BOLDRED   string = "\x1b[1;31m"
+	RESET     string = "\x1b[0m"
 )
 
 type Results struct {
@@ -21,13 +21,13 @@ type Results struct {
 }
 
 type CategoryFeed struct {
-	Name             string `xml:"name,attr"`
-	MaxAbstractLength int   `xml:"maxabstractlength,attr"`
-	HideTitle        bool   `xml:"hidetitle,attr"`
-	HideAuthor       bool   `xml:"hideauthor,attr"`
-	HideAbstract     bool   `xml:"hideabstract,attr"`
-	HideLink         bool   `xml:"hidelink,attr"`
-	Feed Feed `xml:"feed"`
+	Name              string `xml:"name,attr"`
+	MaxAbstractLength int    `xml:"maxabstractlength,attr"`
+	HideTitle         bool   `xml:"hidetitle,attr"`
+	HideAuthor        bool   `xml:"hideauthor,attr"`
+	HideAbstract      bool   `xml:"hideabstract,attr"`
+	HideLink          bool   `xml:"hidelink,attr"`
+	Feed              Feed   `xml:"feed"`
 }
 
 type Feed struct {
@@ -54,13 +54,13 @@ type Author struct {
 }
 
 type Category struct {
-	Name             string `xml:"name"`
-	MaxResults       int    `xml:"maxresults"`
-	MaxAbstractLength int   `xml:"maxabstractlength"`
-	HideTitle        bool   `xml:"hidetitle,attr"`
-	HideAuthor       bool   `xml:"hideauthor,attr"`
-	HideAbstract     bool   `xml:"hideabstract,attr"`
-	HideLink         bool   `xml:"hidelink,attr"`
+	Name              string `xml:"name"`
+	MaxResults        int    `xml:"maxresults"`
+	MaxAbstractLength int    `xml:"maxabstractlength"`
+	HideTitle         bool   `xml:"hidetitle,attr"`
+	HideAuthor        bool   `xml:"hideauthor,attr"`
+	HideAbstract      bool   `xml:"hideabstract,attr"`
+	HideLink          bool   `xml:"hidelink,attr"`
 }
 
 type Config struct {
@@ -69,7 +69,6 @@ type Config struct {
 }
 
 func main() {
-
 	fetchBoolPtr := flag.Bool("fetch", false, "fetch the latest research")
 	flag.Parse()
 
@@ -98,7 +97,7 @@ func main() {
 			return
 		}
 		cacheDir = cacheDir + "/knolfetch/"
-		os.MkdirAll(cacheDir, 0755)
+		os.MkdirAll(cacheDir, 0o755)
 
 		cachePath := cacheDir + "cache.xml"
 		f, err := os.Create(cachePath)
